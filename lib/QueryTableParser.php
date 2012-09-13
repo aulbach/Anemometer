@@ -48,15 +48,16 @@ class QueryTableParser {
         $tables = array();
         while ($this->has_next_token()) {
             $token = $this->get_next_token();
-            //print "--> found $token\n";
-
             if (in_array(strtolower($token), $this->table_tokens)) {
-
-                $table = $this->get_next_token();
+                $table = $this->get_tbl_name();
+//error_log("--> table: $table");
 
                 if (preg_match("/\w+/", $table)) {
-                    $table = str_replace('`', '', $table);
-                    $tables[$table]++;
+                    if (array_key_exists($table, $tables)) {
+                        $tables[$table]++;
+                    } else {
+                        $tables[$table] = 1;
+                    }
                 }
             }
         }
@@ -94,6 +95,35 @@ class QueryTableParser {
         $len = $pos - $start;
         $this->pos = $pos + 1;
         return substr($this->query, $start, $len);
+    }
+
+    /**
+     * parses the table name from the current position
+     *
+     * A table-name looks like:
+     * [[`]db_name[`].][`]table_name[`]
+     *
+     * There needs not to be a space to separate to the next token!
+     *
+     */
+    private function get_tbl_name() {
+        $regex = "/
+            ^.{" . $this->pos . "} # overread pos chars
+           (
+               ` .+? ` \\.  ` .+ `   # match `db`.`table`
+             | ` .+? ` \\.   \w+     # `db`.table
+             | \w+ \\. \w+           # db.table
+             | ` .+? ` (?!\\.)       # `table`
+             | \w+  (?!\\.)          # table
+           )
+        /xs"; # with comments, '.' is multiline
+        if (preg_match($regex, $this->query, $matches)) {
+            error_log("MATCHES " . var_export($matches,1));
+            $this->pos = $this->pos + strlen($matches[0]);
+            return $matches[1];
+            #return preg_replace('/^`(.+)`$/', '\\1', $matches[3]);
+        }
+        return false;
     }
 
 }
